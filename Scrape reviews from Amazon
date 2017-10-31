@@ -1,0 +1,47 @@
+library("tm")
+library("SnowballC")
+library("wordcloud")
+library("RColorBrewer")
+library("rvest")
+library("stringr")
+
+url <- "https://www.amazon.com/Match-Mens-Wild-Cargo-Pants/product-reviews/B009HLOZ9U/ref=cm_cr_arp_d_paging_btm_2?ie=UTF8&reviewerType=avp_only_reviews&sortBy=recent&pageNumber="
+N_pages <- 100
+A <- NULL
+for (j in 1: N_pages){
+  scraped <- read_html(paste0(url, j))
+  B <- cbind(scraped %>% html_nodes(".review-text") %>% html_text())
+  A <- rbind(A,B)
+}
+
+A=lapply(A,function(x) str_replace_all(x,"[^[:graph:]]", " "))
+A=lapply(A,function(x) iconv(x, 'UTF-8', 'ASCII'))
+
+docs <- Corpus(VectorSource(A))
+toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
+docs <- tm_map(docs, toSpace, "/")
+docs <- tm_map(docs, toSpace, "@")
+docs <- tm_map(docs, toSpace, "\\|")
+# Convert the text to lower case
+docs <- tm_map(docs, content_transformer(tolower))
+# Remove numbers
+docs <- tm_map(docs, removeNumbers)
+# Remove english common stopwords
+docs <- tm_map(docs, removeWords, stopwords("english"))
+# Remove your own stop word
+# specify your stopwords as a character vector
+docs <- tm_map(docs, removeWords, c("bad", "good", "match", "men", "cargo", "pants")) 
+# Remove punctuations
+docs <- tm_map(docs, removePunctuation)
+# Eliminate extra white spaces
+docs <- tm_map(docs, stripWhitespace)
+# Text stemming
+docs <- tm_map(docs, stemDocument)
+dtm <- TermDocumentMatrix(docs)
+m <- as.matrix(dtm)
+v <- sort(rowSums(m),decreasing=TRUE)
+d <- data.frame(word = names(v),freq=v)
+set.seed(1234)
+wordcloud(words = d$word, freq = d$freq, min.freq = 0.1,
+          max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))
